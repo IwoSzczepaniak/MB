@@ -62,7 +62,7 @@ def add_roles_to_bpmn(
     return role_to_vertical_position
 
 
-def repair_tasks(
+def fix_tasks(
     root: ET.Element, role_to_vertical_position: Dict[str, float]
 ) -> Dict[str, float]:
     tasks = get_all_tasks(root)
@@ -89,7 +89,7 @@ def repair_tasks(
     return task_to_vertical_position
 
 
-def repair_waypoints(
+def fix_waypoints(
     root: ET.Element, task_to_vertical_position: Dict[ET.Element, float]
 ) -> None:
     tasks = get_all_tasks(root)
@@ -157,6 +157,10 @@ if __name__ == "__main__":
 
     bpmn_file_path = "input_diagram.bpmn"
 
+    # ---------------------- repairExample.csv -----------------------
+
+    role_field_name = "Resource"
+    activity_field_name = "Activity"
     dataframe = convert_log_to_bpmn(
         log_path="example_logs/repairExample.csv",
         case_id_field_name="Case ID",
@@ -165,11 +169,37 @@ if __name__ == "__main__":
         path_to_save_bpmn=bpmn_file_path,
     )
 
+    # ---------------------- purchasingExample.csv --------------------
+
+    # role_field_name = "Role"
+    # activity_field_name = "Activity"
+    # dataframe = convert_log_to_bpmn(
+    #     log_path="example_logs/purchasingExample.csv",
+    #     case_id_field_name="Case ID",
+    #     activity_field_name="Activity",
+    #     timestamp_field_name="Start Timestamp",
+    #     path_to_save_bpmn=bpmn_file_path,
+    # )
+
+    # ---------------------- new_teleclaims_changed_labels.csv --------------------
+
+    # role_field_name = "resource"
+    # activity_field_name = "action"  # alternatively task_field_name
+    # dataframe = convert_log_to_bpmn(
+    #     log_path="example_logs/new_teleclaims_changed_labels.csv",
+    #     case_id_field_name="id",
+    #     activity_field_name=activity_field_name,
+    #     timestamp_field_name="from",
+    #     path_to_save_bpmn=bpmn_file_path,
+    # )
+
     tree = parse_bpmn_file(bpmn_file_path)
 
-    task_to_role = get_task_role_map(dataframe, role_field_name="Resource")
+    task_to_role = get_task_role_map(
+        dataframe, task_field_name=activity_field_name, role_field_name=role_field_name
+    )
     role_to_vertical_position = add_roles_to_bpmn(tree.getroot(), task_to_role)
-    task_to_vertical_position = repair_tasks(tree.getroot(), role_to_vertical_position)
-    repair_waypoints(tree.getroot(), task_to_vertical_position)
+    task_to_vertical_position = fix_tasks(tree.getroot(), role_to_vertical_position)
+    fix_waypoints(tree.getroot(), task_to_vertical_position)
 
     tree.write("output_diagram.bpmn", encoding="utf-8", xml_declaration=True)
