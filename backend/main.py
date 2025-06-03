@@ -162,7 +162,7 @@ if __name__ == "__main__":
     role_field_name = "Resource"
     activity_field_name = "Activity"
     dataframe = convert_log_to_bpmn(
-        log_path="example_logs/repairExample.csv",
+        log_path="../example_logs/repairExample.csv",
         case_id_field_name="Case ID",
         activity_field_name="Activity",
         timestamp_field_name="Start Timestamp",
