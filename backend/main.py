@@ -1,6 +1,7 @@
 from utils import *
 from fastapi import FastAPI, File, UploadFile, Form
-from starlette.responses import FileResponse
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import shutil
 import os
@@ -68,7 +69,7 @@ def add_roles_to_bpmn(
 
 
 def fix_tasks(
-    root: ET.Element, role_to_vertical_position: Dict[str, float]
+    root: ET.Element, role_to_vertical_position: Dict[str, float], task_to_role: Dict[str, str]
 ) -> Dict[str, float]:
     tasks = get_all_tasks(root)
     task_to_vertical_position = {}
@@ -160,6 +161,22 @@ def fix_waypoints(
 
 app = FastAPI()
 
+# Add CORS middleware
+origins = [
+    "http://localhost:5173", # Your frontend origin
+    "http://localhost:3000", # Common React dev port, just in case
+    "http://127.0.0.1:5173",
+    # Add any other origins if necessary
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins, # Allows specific origins
+    # allow_origins=["*"], # Alternatively, allow all origins (less secure for production)
+    allow_credentials=True,
+    allow_methods=["POST"], # Specify methods, or ["*"] for all
+    allow_headers=["Content-Type"], # Specify headers, or ["*"] for all
+)
 
 def run_bpmn_generation_logic(
     log_path: str,
@@ -185,7 +202,7 @@ def run_bpmn_generation_logic(
         dataframe, task_field_name=activity_field_name, role_field_name=role_field_name
     )
     role_to_vertical_position = add_roles_to_bpmn(root, task_to_role)
-    task_to_vertical_position = fix_tasks(root, role_to_vertical_position)
+    task_to_vertical_position = fix_tasks(root, role_to_vertical_position, task_to_role)
     fix_waypoints(root, task_to_vertical_position)
 
     tree.write(output_bpmn_path, encoding="utf-8", xml_declaration=True)
@@ -205,7 +222,10 @@ async def generate_bpmn_api(csv_file: UploadFile = File(...)):
         shutil.copyfileobj(csv_file.file, buffer)
 
     input_bpmn_path = "input_diagram.bpmn"
-    output_bpmn_path = "output_diagram.bpmn"
+    backend_dir = os.path.dirname(__file__)
+    frontend_public_dir = os.path.abspath(os.path.join(backend_dir, "..", "frontend", "public"))
+    os.makedirs(frontend_public_dir, exist_ok=True)
+    output_bpmn_final_path = os.path.join(frontend_public_dir, "diagram.bpmn")
 
     run_bpmn_generation_logic(
         log_path=temp_csv_path,
@@ -213,13 +233,15 @@ async def generate_bpmn_api(csv_file: UploadFile = File(...)):
         activity_field_name=activity_field_name,
         timestamp_field_name=timestamp_field_name,
         role_field_name=role_field_name,
-        input_bpmn_path=input_bpmn_path,
-        output_bpmn_path=output_bpmn_path,
+        input_bpmn_path=input_bpmn_path, # This is the initial BPMN from pm4py
+        output_bpmn_path=output_bpmn_final_path, # This is the final, styled BPMN path
     )
 
     os.remove(temp_csv_path)
+    if os.path.exists(input_bpmn_path):
+        os.remove(input_bpmn_path)
 
-    return FileResponse(output_bpmn_path, media_type='application/octet-stream', filename='output_diagram.bpmn')
+    return JSONResponse(content={"message": "File processed successfully.", "diagramUrl": "/diagram.bpmn"})
 
 
 if __name__ == "__main__":
