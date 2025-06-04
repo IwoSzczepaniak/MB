@@ -28,7 +28,7 @@ function BpmnCanvas() {
 
   return (
     <div className="App">
-      <h1>BPMN Layer Adder (React)</h1>
+      <h1>BPMN Canvas</h1>
 
       <div
         className="canvasContainer"

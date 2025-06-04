@@ -1,21 +1,21 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import BpmnCanvas from './BpmnCanvas'; // Assuming BpmnCanvas is in the same directory
-import LogUploadPage from './pages/LogUploadPage'; // Path to the new LogUploadPage
+import BpmnCanvas from './BpmnCanvas';
+import LogUploadPage from './pages/LogUploadPage';
 
 function App() {
   return (
     <Router>
       <div className="app-container">
         <nav className="app-nav">
-          <NavLink to="/" className="nav-link">BPMN Canvas</NavLink>
-          <NavLink to="/upload-logs" className="nav-link">Upload Logs</NavLink>
+          <NavLink to="/" className="nav-link">Upload Logs</NavLink>
+          <NavLink to="/visualize" className="nav-link">BPMN Canvas</NavLink>
         </nav>
 
         <main className="app-content">
           <Routes>
-            <Route path="/" element={<BpmnCanvas />} />
-            <Route path="/upload-logs" element={<LogUploadPage />} />
+            <Route path="/" element={<LogUploadPage />} />
+            <Route path="/visualize" element={<BpmnCanvas />} />
           </Routes>
         </main>
       </div>

@@ -7,7 +7,6 @@ function LogUploadPage() {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // State for form fields
   const [roleFieldName, setRoleFieldName] = useState('Resource');
   const [activityFieldName, setActivityFieldName] = useState('Activity');
   const [caseIdFieldName, setCaseIdFieldName] = useState('Case ID');
