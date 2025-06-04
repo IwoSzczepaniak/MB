@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './LogUploadPage.css'; // Import the CSS file
 
 function LogUploadPage() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -80,59 +81,69 @@ function LogUploadPage() {
   };
 
   return (
-    <div>
+    <div className="page-container">
       <h2>Upload Log CSV File & Configure Parameters</h2>
       
-      <div>
-        <label htmlFor="csvFile">CSV File:</label>
-        <input id="csvFile" type="file" accept=".csv" onChange={handleFileChange} />
+      <div className="input-group">
+        <label htmlFor="csvFile" className="label">CSV File:</label>
+        <input id="csvFile" type="file" accept=".csv" onChange={handleFileChange} className="file-input-field" />
       </div>
 
-      <h3>Field Name Configuration:</h3>
-      <div>
-        <label htmlFor="roleField">Role Field Name:</label>
-        <input 
-          id="roleField" 
-          type="text" 
-          value={roleFieldName} 
-          onChange={(e) => setRoleFieldName(e.target.value)} 
-        />
-      </div>
-      <div>
-        <label htmlFor="activityField">Activity Field Name:</label>
-        <input 
-          id="activityField" 
-          type="text" 
-          value={activityFieldName} 
-          onChange={(e) => setActivityFieldName(e.target.value)} 
-        />
-      </div>
-      <div>
-        <label htmlFor="caseIdField">Case ID Field Name:</label>
-        <input 
-          id="caseIdField" 
-          type="text" 
-          value={caseIdFieldName} 
-          onChange={(e) => setCaseIdFieldName(e.target.value)} 
-        />
-      </div>
-      <div>
-        <label htmlFor="timestampField">Timestamp Field Name:</label>
-        <input 
-          id="timestampField" 
-          type="text" 
-          value={timestampFieldName} 
-          onChange={(e) => setTimestampFieldName(e.target.value)} 
-        />
-      </div>
+      <fieldset className="config-fieldset">
+        <legend className="config-legend">Field Name Configuration</legend>
+        <div className="input-group">
+          <label htmlFor="roleField" className="label">Role Field Name:</label>
+          <input 
+            id="roleField" 
+            type="text" 
+            value={roleFieldName} 
+            onChange={(e) => setRoleFieldName(e.target.value)} 
+            className="input-field"
+          />
+        </div>
+        <div className="input-group">
+          <label htmlFor="activityField" className="label">Activity Field Name:</label>
+          <input 
+            id="activityField" 
+            type="text" 
+            value={activityFieldName} 
+            onChange={(e) => setActivityFieldName(e.target.value)} 
+            className="input-field"
+          />
+        </div>
+        <div className="input-group">
+          <label htmlFor="caseIdField" className="label">Case ID Field Name:</label>
+          <input 
+            id="caseIdField" 
+            type="text" 
+            value={caseIdFieldName} 
+            onChange={(e) => setCaseIdFieldName(e.target.value)} 
+            className="input-field"
+          />
+        </div>
+        <div className="input-group">
+          <label htmlFor="timestampField" className="label">Timestamp Field Name:</label>
+          <input 
+            id="timestampField" 
+            type="text" 
+            value={timestampFieldName} 
+            onChange={(e) => setTimestampFieldName(e.target.value)} 
+            className="input-field"
+          />
+        </div>
+      </fieldset>
       
-      <button onClick={handleSubmit} disabled={!selectedFile || isLoading} style={{ marginTop: '10px' }}>
+      <button 
+        onClick={handleSubmit} 
+        disabled={!selectedFile || isLoading} 
+        className="button"
+      >
         {isLoading ? 'Processing...' : 'Upload & Download Diagram'}
       </button>
       
-      {selectedFile && <p>Selected file: {selectedFile.name}</p>}
-      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
-      {successMessage && <p style={{ color: 'green' }}>{successMessage}</p>}
+      {selectedFile && <p className="status-message">Selected file: {selectedFile.name}</p>}
+      {error && <p className="error-message">Error: {error}</p>}
+      {successMessage && <p className="success-message">{successMessage}</p>}
     </div>
   );
 }
