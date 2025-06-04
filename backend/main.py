@@ -1,10 +1,29 @@
 from utils import *
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import shutil
 import os
+import uuid
+
+
+STATIC_FILES_DIR = "generated_bpmns"
+os.makedirs(STATIC_FILES_DIR, exist_ok=True)
+
+def cleanup_all_static_bpmn_files():
+    if os.path.exists(STATIC_FILES_DIR):
+        for filename in os.listdir(STATIC_FILES_DIR):
+            file_path = os.path.join(STATIC_FILES_DIR, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                    print(f"INFO: Deleted {file_path}.")
+            except Exception as e:
+                print(f'ERROR: Failed to delete {file_path}. Reason: {e}')
+    else:
+        print(f"INFO: Directory {STATIC_FILES_DIR} not found, no cleanup needed.")
 
 
 def parse_bpmn_file(bpmn_file_path: Union[str, None]) -> ET.ElementTree:
@@ -165,6 +184,7 @@ origins = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://127.0.0.1:5173",
+    "http://localhost:8000",
 ]
 
 app.add_middleware(
@@ -174,6 +194,8 @@ app.add_middleware(
     allow_methods=["POST"],
     allow_headers=["Content-Type"],
 )
+
+app.mount(f"/{STATIC_FILES_DIR}", StaticFiles(directory=STATIC_FILES_DIR), name="static_files")
 
 def run_bpmn_generation_logic(
     log_path: str,
@@ -214,13 +236,17 @@ async def generate_bpmn_api(
     case_id_field_name: str = Form("Case ID"),
     timestamp_field_name: str = Form("Start Timestamp"),
 ):
+    cleanup_all_static_bpmn_files()
+
     temp_csv_path = f"temp_{csv_file.filename}"
-    temp_output_bpmn_path = f"temp_output_{csv_file.filename}.bpmn"
+    
+    unique_filename = f"{uuid.uuid4()}.bpmn"
+    output_bpmn_path = os.path.join(STATIC_FILES_DIR, unique_filename)
 
     with open(temp_csv_path, "wb") as buffer:
         shutil.copyfileobj(csv_file.file, buffer)
 
-    input_bpmn_path = "input_diagram.bpmn"
+    temp_input_bpmn_path = f"temp_input_{uuid.uuid4()}.bpmn"
 
     try:
         run_bpmn_generation_logic(
@@ -229,20 +255,18 @@ async def generate_bpmn_api(
             activity_field_name=activity_field_name,
             timestamp_field_name=timestamp_field_name,
             role_field_name=role_field_name,
-            input_bpmn_path=input_bpmn_path,
-            output_bpmn_path=temp_output_bpmn_path,
+            input_bpmn_path=temp_input_bpmn_path,
+            output_bpmn_path=output_bpmn_path,
         )
 
-        return FileResponse(
-            path=temp_output_bpmn_path,
-            media_type='application/octet-stream',
-            filename='diagram.bpmn',
-        )
+        file_url = f"http://localhost:8000/{STATIC_FILES_DIR}/{unique_filename}"
+        return JSONResponse(content={"diagram_url": file_url})
+
     finally:
         if os.path.exists(temp_csv_path):
             os.remove(temp_csv_path)
-        if os.path.exists(input_bpmn_path):
-            os.remove(input_bpmn_path)
+        if os.path.exists(temp_input_bpmn_path):
+            os.remove(temp_input_bpmn_path)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

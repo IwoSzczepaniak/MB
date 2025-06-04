@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useCallback } from "react";
+import { useLocation } from 'react-router-dom';
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
@@ -9,8 +10,9 @@ import ErrorMessage from "./ErrorMessage";
 
 function BpmnCanvas() {
   const canvasRef = useRef(null);
+  const location = useLocation();
 
-  const { modeler, isReady, error } = useBpmnModeler(canvasRef);
+  const { modeler, isReady, error, loadDiagram } = useBpmnModeler(canvasRef);
 
   const addHierarchicalLayers = useCallback(() => {
     if (!modeler) {
@@ -25,6 +27,16 @@ function BpmnCanvas() {
       alert(`Failed to load diagram: ${error}`);
     }
   }, [error]);
+
+  useEffect(() => {
+    const diagramUrlFromState = location.state?.diagram_url;
+    if (diagramUrlFromState && loadDiagram && typeof loadDiagram === 'function') {
+      console.log("BpmnCanvas: Received diagram URL from state:", diagramUrlFromState);
+      loadDiagram(diagramUrlFromState);
+    } else if (location.state && !diagramUrlFromState) {
+      console.warn("BpmnCanvas: Navigated with state, but diagram_url is missing.");
+    }
+  }, [location.state, loadDiagram]);
 
   return (
     <div className="App">

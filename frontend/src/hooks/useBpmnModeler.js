@@ -52,8 +52,6 @@ const useBpmnModeler = (containerRef) => {
       });
       modelerRef.current = modeler;
       console.log("Bpmn Modeler initialized.");
-
-      loadDiagram("public/diagram.bpmn");
     }
 
     return () => {
@@ -64,9 +62,9 @@ const useBpmnModeler = (containerRef) => {
         setIsReady(false);
       }
     };
-  }, [containerRef, loadDiagram]);
+  }, [containerRef]);
 
-  return { modeler: modelerRef.current, isReady, error };
+  return { modeler: modelerRef.current, isReady, error, loadDiagram };
 };
 
 export default useBpmnModeler;

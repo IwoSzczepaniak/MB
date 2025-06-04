@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './LogUploadPage.css'; // Import the CSS file
 
 function LogUploadPage() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
+  const navigate = useNavigate();
 
   const [roleFieldName, setRoleFieldName] = useState('Resource');
   const [activityFieldName, setActivityFieldName] = useState('Activity');
@@ -17,7 +18,6 @@ function LogUploadPage() {
     if (file && file.type === 'text/csv') {
       setSelectedFile(file);
       setError(null);
-      setSuccessMessage(null);
     } else {
       setSelectedFile(null);
       alert('Please select a CSV file.');
@@ -28,7 +28,6 @@ function LogUploadPage() {
     if (selectedFile) {
       setIsLoading(true);
       setError(null);
-      setSuccessMessage(null);
 
       const formData = new FormData();
       formData.append('csv_file', selectedFile);
@@ -54,18 +53,12 @@ function LogUploadPage() {
           throw new Error(errorMsg);
         }
 
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.setAttribute('download', 'diagram.bpmn');
-        document.body.appendChild(link);
-        link.click();
-        link.parentNode.removeChild(link);
-        window.URL.revokeObjectURL(downloadUrl);
-
-        setSuccessMessage('Diagram downloaded successfully!');
-        alert('Diagram downloaded successfully!');
+        const data = await response.json();
+        if (data.diagram_url) {
+          navigate('/visualize', { state: { diagram_url: data.diagram_url } });
+        } else {
+          throw new Error('Diagram URL not found in response.');
+        }
 
       } catch (err) {
         console.error('Error:', err);
@@ -137,12 +130,11 @@ function LogUploadPage() {
         disabled={!selectedFile || isLoading} 
         className="button"
       >
-        {isLoading ? 'Processing...' : 'Upload & Download Diagram'}
+        {isLoading ? 'Processing...' : 'Upload & Generate Diagram'}
       </button>
       
       {selectedFile && <p className="status-message">Selected file: {selectedFile.name}</p>}
       {error && <p className="error-message">Error: {error}</p>}
-      {successMessage && <p className="success-message">{successMessage}</p>}
     </div>
   );
 }
