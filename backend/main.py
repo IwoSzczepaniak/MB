@@ -207,12 +207,13 @@ def run_bpmn_generation_logic(
 
 
 @app.post("/generate_bpmn/")
-async def generate_bpmn_api(csv_file: UploadFile = File(...)):
-    role_field_name: str = "Resource"
-    activity_field_name: str = "Activity"
-    case_id_field_name: str = "Case ID"
-    timestamp_field_name: str = "Start Timestamp"
-
+async def generate_bpmn_api(
+    csv_file: UploadFile = File(...),
+    role_field_name: str = Form("Resource"),
+    activity_field_name: str = Form("Activity"),
+    case_id_field_name: str = Form("Case ID"),
+    timestamp_field_name: str = Form("Start Timestamp"),
+):
     temp_csv_path = f"temp_{csv_file.filename}"
     temp_output_bpmn_path = f"temp_output_{csv_file.filename}.bpmn"
 

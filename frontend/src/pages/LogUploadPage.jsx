@@ -6,6 +6,12 @@ function LogUploadPage() {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
+  // State for form fields
+  const [roleFieldName, setRoleFieldName] = useState('Resource');
+  const [activityFieldName, setActivityFieldName] = useState('Activity');
+  const [caseIdFieldName, setCaseIdFieldName] = useState('Case ID');
+  const [timestampFieldName, setTimestampFieldName] = useState('Start Timestamp');
+
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file && file.type === 'text/csv') {
@@ -26,6 +32,10 @@ function LogUploadPage() {
 
       const formData = new FormData();
       formData.append('csv_file', selectedFile);
+      formData.append('role_field_name', roleFieldName);
+      formData.append('activity_field_name', activityFieldName);
+      formData.append('case_id_field_name', caseIdFieldName);
+      formData.append('timestamp_field_name', timestampFieldName);
 
       try {
         const response = await fetch('http://localhost:8000/generate_bpmn/', {
@@ -71,11 +81,55 @@ function LogUploadPage() {
 
   return (
     <div>
-      <h2>Upload Log CSV File</h2>
-      <input type="file" accept=".csv" onChange={handleFileChange} />
-      <button onClick={handleSubmit} disabled={!selectedFile || isLoading}>
+      <h2>Upload Log CSV File & Configure Parameters</h2>
+      
+      <div>
+        <label htmlFor="csvFile">CSV File:</label>
+        <input id="csvFile" type="file" accept=".csv" onChange={handleFileChange} />
+      </div>
+
+      <h3>Field Name Configuration:</h3>
+      <div>
+        <label htmlFor="roleField">Role Field Name:</label>
+        <input 
+          id="roleField" 
+          type="text" 
+          value={roleFieldName} 
+          onChange={(e) => setRoleFieldName(e.target.value)} 
+        />
+      </div>
+      <div>
+        <label htmlFor="activityField">Activity Field Name:</label>
+        <input 
+          id="activityField" 
+          type="text" 
+          value={activityFieldName} 
+          onChange={(e) => setActivityFieldName(e.target.value)} 
+        />
+      </div>
+      <div>
+        <label htmlFor="caseIdField">Case ID Field Name:</label>
+        <input 
+          id="caseIdField" 
+          type="text" 
+          value={caseIdFieldName} 
+          onChange={(e) => setCaseIdFieldName(e.target.value)} 
+        />
+      </div>
+      <div>
+        <label htmlFor="timestampField">Timestamp Field Name:</label>
+        <input 
+          id="timestampField" 
+          type="text" 
+          value={timestampFieldName} 
+          onChange={(e) => setTimestampFieldName(e.target.value)} 
+        />
+      </div>
+      
+      <button onClick={handleSubmit} disabled={!selectedFile || isLoading} style={{ marginTop: '10px' }}>
         {isLoading ? 'Processing...' : 'Upload & Download Diagram'}
       </button>
+      
       {selectedFile && <p>Selected file: {selectedFile.name}</p>}
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
       {successMessage && <p style={{ color: 'green' }}>{successMessage}</p>}
