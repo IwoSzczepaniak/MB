@@ -1,6 +1,6 @@
 from utils import *
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import shutil
@@ -161,21 +161,18 @@ def fix_waypoints(
 
 app = FastAPI()
 
-# Add CORS middleware
 origins = [
-    "http://localhost:5173", # Your frontend origin
-    "http://localhost:3000", # Common React dev port, just in case
+    "http://localhost:5173",
+    "http://localhost:3000",
     "http://127.0.0.1:5173",
-    # Add any other origins if necessary
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # Allows specific origins
-    # allow_origins=["*"], # Alternatively, allow all origins (less secure for production)
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["POST"], # Specify methods, or ["*"] for all
-    allow_headers=["Content-Type"], # Specify headers, or ["*"] for all
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
 )
 
 def run_bpmn_generation_logic(
@@ -211,38 +208,40 @@ def run_bpmn_generation_logic(
 
 @app.post("/generate_bpmn/")
 async def generate_bpmn_api(csv_file: UploadFile = File(...)):
-    # Hardcoded field names based on previous defaults for repairExample.csv
     role_field_name: str = "Resource"
     activity_field_name: str = "Activity"
     case_id_field_name: str = "Case ID"
     timestamp_field_name: str = "Start Timestamp"
 
     temp_csv_path = f"temp_{csv_file.filename}"
+    temp_output_bpmn_path = f"temp_output_{csv_file.filename}.bpmn"
+
     with open(temp_csv_path, "wb") as buffer:
         shutil.copyfileobj(csv_file.file, buffer)
 
     input_bpmn_path = "input_diagram.bpmn"
-    backend_dir = os.path.dirname(__file__)
-    frontend_public_dir = os.path.abspath(os.path.join(backend_dir, "..", "frontend", "public"))
-    os.makedirs(frontend_public_dir, exist_ok=True)
-    output_bpmn_final_path = os.path.join(frontend_public_dir, "diagram.bpmn")
 
-    run_bpmn_generation_logic(
-        log_path=temp_csv_path,
-        case_id_field_name=case_id_field_name,
-        activity_field_name=activity_field_name,
-        timestamp_field_name=timestamp_field_name,
-        role_field_name=role_field_name,
-        input_bpmn_path=input_bpmn_path, # This is the initial BPMN from pm4py
-        output_bpmn_path=output_bpmn_final_path, # This is the final, styled BPMN path
-    )
+    try:
+        run_bpmn_generation_logic(
+            log_path=temp_csv_path,
+            case_id_field_name=case_id_field_name,
+            activity_field_name=activity_field_name,
+            timestamp_field_name=timestamp_field_name,
+            role_field_name=role_field_name,
+            input_bpmn_path=input_bpmn_path,
+            output_bpmn_path=temp_output_bpmn_path,
+        )
 
-    os.remove(temp_csv_path)
-    if os.path.exists(input_bpmn_path):
-        os.remove(input_bpmn_path)
-
-    return JSONResponse(content={"message": "File processed successfully.", "diagramUrl": "/diagram.bpmn"})
-
+        return FileResponse(
+            path=temp_output_bpmn_path,
+            media_type='application/octet-stream',
+            filename='diagram.bpmn',
+        )
+    finally:
+        if os.path.exists(temp_csv_path):
+            os.remove(temp_csv_path)
+        if os.path.exists(input_bpmn_path):
+            os.remove(input_bpmn_path)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
