@@ -1,4 +1,9 @@
 from utils import *
+from fastapi import FastAPI, File, UploadFile, Form
+from starlette.responses import FileResponse
+import uvicorn
+import shutil
+import os
 
 
 def parse_bpmn_file(bpmn_file_path: Union[str, None]) -> ET.ElementTree:
@@ -103,7 +108,7 @@ def fix_waypoints(
 
         # for incoming arrows, only the y last pair of coordinates needs to be changed,
         for sequence_id in incoming:
-            bpmn_edge = find_bpmn_edge_by_bpmn_element(tree.getroot(), sequence_id)
+            bpmn_edge = find_bpmn_edge_by_bpmn_element(root, sequence_id)
             positions = []
             elements = []
             for element in bpmn_edge.findall("ns6:waypoint", NS):
@@ -129,7 +134,7 @@ def fix_waypoints(
         # similar logic for outgoing, however here first y in first pair of coordinates needs to be adjusted
         for sequence_id in outgoing:
             bpmn_edge: ET.Element = find_bpmn_edge_by_bpmn_element(
-                tree.getroot(), sequence_id
+                root, sequence_id
             )
             positions = []
             elements = []
@@ -153,53 +158,69 @@ def fix_waypoints(
                 )
 
 
-if __name__ == "__main__":
+app = FastAPI()
 
-    bpmn_file_path = "input_diagram.bpmn"
 
-    # ---------------------- repairExample.csv -----------------------
-
-    role_field_name = "Resource"
-    activity_field_name = "Activity"
+def run_bpmn_generation_logic(
+    log_path: str,
+    case_id_field_name: str,
+    activity_field_name: str,
+    timestamp_field_name: str,
+    role_field_name: str,
+    input_bpmn_path: str,
+    output_bpmn_path: str,
+):
     dataframe = convert_log_to_bpmn(
-        log_path="../example_logs/repairExample.csv",
-        case_id_field_name="Case ID",
-        activity_field_name="Activity",
-        timestamp_field_name="Start Timestamp",
-        path_to_save_bpmn=bpmn_file_path,
+        log_path=log_path,
+        case_id_field_name=case_id_field_name,
+        activity_field_name=activity_field_name,
+        timestamp_field_name=timestamp_field_name,
+        path_to_save_bpmn=input_bpmn_path,
     )
 
-    # ---------------------- purchasingExample.csv --------------------
-
-    # role_field_name = "Role"
-    # activity_field_name = "Activity"
-    # dataframe = convert_log_to_bpmn(
-    #     log_path="example_logs/purchasingExample.csv",
-    #     case_id_field_name="Case ID",
-    #     activity_field_name="Activity",
-    #     timestamp_field_name="Start Timestamp",
-    #     path_to_save_bpmn=bpmn_file_path,
-    # )
-
-    # ---------------------- new_teleclaims_changed_labels.csv --------------------
-
-    # role_field_name = "resource"
-    # activity_field_name = "action"  # alternatively task_field_name
-    # dataframe = convert_log_to_bpmn(
-    #     log_path="example_logs/new_teleclaims_changed_labels.csv",
-    #     case_id_field_name="id",
-    #     activity_field_name=activity_field_name,
-    #     timestamp_field_name="from",
-    #     path_to_save_bpmn=bpmn_file_path,
-    # )
-
-    tree = parse_bpmn_file(bpmn_file_path)
+    tree = parse_bpmn_file(input_bpmn_path)
+    root = tree.getroot()
 
     task_to_role = get_task_role_map(
         dataframe, task_field_name=activity_field_name, role_field_name=role_field_name
     )
-    role_to_vertical_position = add_roles_to_bpmn(tree.getroot(), task_to_role)
-    task_to_vertical_position = fix_tasks(tree.getroot(), role_to_vertical_position)
-    fix_waypoints(tree.getroot(), task_to_vertical_position)
+    role_to_vertical_position = add_roles_to_bpmn(root, task_to_role)
+    task_to_vertical_position = fix_tasks(root, role_to_vertical_position)
+    fix_waypoints(root, task_to_vertical_position)
 
-    tree.write("output_diagram.bpmn", encoding="utf-8", xml_declaration=True)
+    tree.write(output_bpmn_path, encoding="utf-8", xml_declaration=True)
+    return dataframe
+
+
+@app.post("/generate_bpmn/")
+async def generate_bpmn_api(csv_file: UploadFile = File(...)):
+    # Hardcoded field names based on previous defaults for repairExample.csv
+    role_field_name: str = "Resource"
+    activity_field_name: str = "Activity"
+    case_id_field_name: str = "Case ID"
+    timestamp_field_name: str = "Start Timestamp"
+
+    temp_csv_path = f"temp_{csv_file.filename}"
+    with open(temp_csv_path, "wb") as buffer:
+        shutil.copyfileobj(csv_file.file, buffer)
+
+    input_bpmn_path = "input_diagram.bpmn"
+    output_bpmn_path = "output_diagram.bpmn"
+
+    run_bpmn_generation_logic(
+        log_path=temp_csv_path,
+        case_id_field_name=case_id_field_name,
+        activity_field_name=activity_field_name,
+        timestamp_field_name=timestamp_field_name,
+        role_field_name=role_field_name,
+        input_bpmn_path=input_bpmn_path,
+        output_bpmn_path=output_bpmn_path,
+    )
+
+    os.remove(temp_csv_path)
+
+    return FileResponse(output_bpmn_path, media_type='application/octet-stream', filename='output_diagram.bpmn')
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
