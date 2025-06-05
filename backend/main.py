@@ -1,4 +1,29 @@
 from utils import *
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+import shutil
+import os
+import uuid
+
+
+STATIC_FILES_DIR = "generated_bpmns"
+os.makedirs(STATIC_FILES_DIR, exist_ok=True)
+
+def cleanup_all_static_bpmn_files():
+    if os.path.exists(STATIC_FILES_DIR):
+        for filename in os.listdir(STATIC_FILES_DIR):
+            file_path = os.path.join(STATIC_FILES_DIR, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                    print(f"INFO: Deleted {file_path}.")
+            except Exception as e:
+                print(f'ERROR: Failed to delete {file_path}. Reason: {e}')
+    else:
+        print(f"INFO: Directory {STATIC_FILES_DIR} not found, no cleanup needed.")
 
 
 def parse_bpmn_file(bpmn_file_path: Union[str, None]) -> ET.ElementTree:
@@ -63,7 +88,7 @@ def add_roles_to_bpmn(
 
 
 def fix_tasks(
-    root: ET.Element, role_to_vertical_position: Dict[str, float]
+    root: ET.Element, role_to_vertical_position: Dict[str, float], task_to_role: Dict[str, str]
 ) -> Dict[str, float]:
     tasks = get_all_tasks(root)
     task_to_vertical_position = {}
@@ -103,7 +128,7 @@ def fix_waypoints(
 
         # for incoming arrows, only the y last pair of coordinates needs to be changed,
         for sequence_id in incoming:
-            bpmn_edge = find_bpmn_edge_by_bpmn_element(tree.getroot(), sequence_id)
+            bpmn_edge = find_bpmn_edge_by_bpmn_element(root, sequence_id)
             positions = []
             elements = []
             for element in bpmn_edge.findall("ns6:waypoint", NS):
@@ -129,7 +154,7 @@ def fix_waypoints(
         # similar logic for outgoing, however here first y in first pair of coordinates needs to be adjusted
         for sequence_id in outgoing:
             bpmn_edge: ET.Element = find_bpmn_edge_by_bpmn_element(
-                tree.getroot(), sequence_id
+                root, sequence_id
             )
             positions = []
             elements = []
@@ -153,53 +178,95 @@ def fix_waypoints(
                 )
 
 
-if __name__ == "__main__":
+app = FastAPI()
 
-    bpmn_file_path = "input_diagram.bpmn"
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+]
 
-    # ---------------------- repairExample.csv -----------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+)
 
-    role_field_name = "Resource"
-    activity_field_name = "Activity"
+app.mount(f"/{STATIC_FILES_DIR}", StaticFiles(directory=STATIC_FILES_DIR), name="static_files")
+
+def run_bpmn_generation_logic(
+    log_path: str,
+    case_id_field_name: str,
+    activity_field_name: str,
+    timestamp_field_name: str,
+    role_field_name: str,
+    input_bpmn_path: str,
+    output_bpmn_path: str,
+):
     dataframe = convert_log_to_bpmn(
-        log_path="example_logs/repairExample.csv",
-        case_id_field_name="Case ID",
-        activity_field_name="Activity",
-        timestamp_field_name="Start Timestamp",
-        path_to_save_bpmn=bpmn_file_path,
+        log_path=log_path,
+        case_id_field_name=case_id_field_name,
+        activity_field_name=activity_field_name,
+        timestamp_field_name=timestamp_field_name,
+        path_to_save_bpmn=input_bpmn_path,
     )
 
-    # ---------------------- purchasingExample.csv --------------------
-
-    # role_field_name = "Role"
-    # activity_field_name = "Activity"
-    # dataframe = convert_log_to_bpmn(
-    #     log_path="example_logs/purchasingExample.csv",
-    #     case_id_field_name="Case ID",
-    #     activity_field_name="Activity",
-    #     timestamp_field_name="Start Timestamp",
-    #     path_to_save_bpmn=bpmn_file_path,
-    # )
-
-    # ---------------------- new_teleclaims_changed_labels.csv --------------------
-
-    # role_field_name = "resource"
-    # activity_field_name = "action"  # alternatively task_field_name
-    # dataframe = convert_log_to_bpmn(
-    #     log_path="example_logs/new_teleclaims_changed_labels.csv",
-    #     case_id_field_name="id",
-    #     activity_field_name=activity_field_name,
-    #     timestamp_field_name="from",
-    #     path_to_save_bpmn=bpmn_file_path,
-    # )
-
-    tree = parse_bpmn_file(bpmn_file_path)
+    tree = parse_bpmn_file(input_bpmn_path)
+    root = tree.getroot()
 
     task_to_role = get_task_role_map(
         dataframe, task_field_name=activity_field_name, role_field_name=role_field_name
     )
-    role_to_vertical_position = add_roles_to_bpmn(tree.getroot(), task_to_role)
-    task_to_vertical_position = fix_tasks(tree.getroot(), role_to_vertical_position)
-    fix_waypoints(tree.getroot(), task_to_vertical_position)
+    role_to_vertical_position = add_roles_to_bpmn(root, task_to_role)
+    task_to_vertical_position = fix_tasks(root, role_to_vertical_position, task_to_role)
+    fix_waypoints(root, task_to_vertical_position)
 
-    tree.write("output_diagram.bpmn", encoding="utf-8", xml_declaration=True)
+    tree.write(output_bpmn_path, encoding="utf-8", xml_declaration=True)
+    return dataframe
+
+
+@app.post("/generate_bpmn/")
+async def generate_bpmn_api(
+    csv_file: UploadFile = File(...),
+    role_field_name: str = Form("Resource"),
+    activity_field_name: str = Form("Activity"),
+    case_id_field_name: str = Form("Case ID"),
+    timestamp_field_name: str = Form("Start Timestamp"),
+):
+    cleanup_all_static_bpmn_files()
+
+    temp_csv_path = f"temp_{csv_file.filename}"
+    
+    unique_filename = f"{uuid.uuid4()}.bpmn"
+    output_bpmn_path = os.path.join(STATIC_FILES_DIR, unique_filename)
+
+    with open(temp_csv_path, "wb") as buffer:
+        shutil.copyfileobj(csv_file.file, buffer)
+
+    temp_input_bpmn_path = f"temp_input_{uuid.uuid4()}.bpmn"
+
+    try:
+        run_bpmn_generation_logic(
+            log_path=temp_csv_path,
+            case_id_field_name=case_id_field_name,
+            activity_field_name=activity_field_name,
+            timestamp_field_name=timestamp_field_name,
+            role_field_name=role_field_name,
+            input_bpmn_path=temp_input_bpmn_path,
+            output_bpmn_path=output_bpmn_path,
+        )
+
+        file_url = f"http://localhost:8000/{STATIC_FILES_DIR}/{unique_filename}"
+        return JSONResponse(content={"diagram_url": file_url})
+
+    finally:
+        if os.path.exists(temp_csv_path):
+            os.remove(temp_csv_path)
+        if os.path.exists(temp_input_bpmn_path):
+            os.remove(temp_input_bpmn_path)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

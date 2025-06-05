@@ -1,0 +1,11 @@
+[dev-packages]
+
+[packages]
+pandas = "*"
+pm4py = "*"
+fastapi = "*"
+uvicorn = "*"
+python-multipart = "*"
+
+[requires]
+python_version = "3.11" 
