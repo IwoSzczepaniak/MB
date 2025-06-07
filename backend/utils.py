@@ -117,6 +117,14 @@ def find_bpmn_process(root: ET.Element) -> Union[ET.Element, None]:
     return find_unique_field(root, "process")
 
 
+def find_bpmn_start_event(root: ET.Element) -> Union[ET.Element, None]:
+    return find_unique_field(root, "startEvent")
+
+
+def find_bpmn_end_event(root: ET.Element) -> Union[ET.Element, None]:
+    return find_unique_field(root, "endEvent")
+
+
 def find_lane_set(root: ET.Element) -> Union[ET.Element, None]:
     return find_unique_field(root, "laneSet")
 
