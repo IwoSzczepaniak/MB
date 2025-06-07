@@ -322,6 +322,8 @@ def fix_overlaps(root):
     for shape, bounds in zip(shapes, bounds_list):
         possible_conflict = []
         for other_shape, other_bounds in zip(shapes, bounds_list):
+            if shape.get("id") == other_shape.get("id"):
+                continue
             if (
                 (
                     abs(float(bounds.get("x")) - float(other_bounds.get("x")))
@@ -441,71 +443,7 @@ def fix_overlaps(root):
             )
 
 
-def fix_waypoints(
-    root: ET.Element, task_to_vertical_position: Dict[ET.Element, float]
-) -> None:
-    tasks = get_all_tasks(root)
-
-    for task in tasks:
-        incoming = find_all_incoming_waypoints_for_task(task)
-        outgoing = find_all_outgoing_waypoints_for_task(task)
-
-        # x positions of waypoints are right, just their y need to be adjusted to their tasks
-        proper_y = task_to_vertical_position[task]
-
-        # for incoming arrows, only the y last pair of coordinates needs to be changed,
-        for sequence_id in incoming:
-            bpmn_edge = find_bpmn_edge_by_bpmn_element(root, sequence_id)
-            positions = []
-            elements = []
-            for element in bpmn_edge.findall("ns6:waypoint", NS):
-                elements.append(element)
-                positions.append((float(element.get("x")), float(element.get("y"))))
-
-            # removing all existing coordinates of waypoints
-            for element in elements:
-                bpmn_edge.remove(element)
-
-            last_x, last_y = positions.pop(-1)
-            positions = positions[:1]  # cutting all middlepoints to fix arrows
-            positions.append((last_x, proper_y))
-            for x, y in positions:
-                ET.SubElement(
-                    bpmn_edge,
-                    f"{{{NS['ns6']}}}waypoint",
-                    {
-                        "x": str(x + 8),
-                        "y": str(y),
-                    },
-                )
-
-        # similar logic for outgoing, however here first y in first pair of coordinates needs to be adjusted
-        for sequence_id in outgoing:
-            bpmn_edge: ET.Element = find_bpmn_edge_by_bpmn_element(root, sequence_id)
-            positions = []
-            elements = []
-            for element in bpmn_edge.findall("ns6:waypoint", NS):
-                elements.append(element)
-                positions.append((float(element.get("x")), float(element.get("y"))))
-
-            for element in elements:
-                bpmn_edge.remove(element)
-
-            last_x, last_y = positions.pop(0)
-            positions = positions[-1:]
-            positions.insert(0, (last_x, proper_y))
-            for x, y in positions:
-                ET.SubElement(
-                    bpmn_edge,
-                    f"{{{NS['ns6']}}}waypoint",
-                    {
-                        "x": str(x),
-                        "y": str(y),
-                    },
-                )
-
-
-def fix_waypoints2(root):
+def fix_waypoints(root):
 
     arrows = []
     for item in root.iter():
@@ -524,8 +462,6 @@ def fix_waypoints2(root):
         graphical_arrows, sources, targets
     ):
         waypoints = graphical_arrow.findall(f"ns6:waypoint", NS)
-        starting_point = waypoints[0]
-        ending_point = waypoints[-1]
 
         for waypoint in waypoints:
             graphical_arrow.remove(waypoint)
@@ -574,37 +510,34 @@ def fix_waypoints2(root):
                 )
                 new_waypoints.append(end)
         else:  # nie sa w tym samym lanie
-            if abs(source_x - target_x) < 125:  # they are not far from each other
+            if source_y - target_y > 0:  # koniec jest wyzej
+                new_waypoints.append(
+                    (
+                        source_x + random_bias,
+                        source_y + 80 - abs(source_y - target_y) + random_shift,
+                    )
+                )
+                new_waypoints.append(
+                    (
+                        target_x - random_bias,
+                        source_y + 80 - abs(source_y - target_y) + random_shift,
+                    )
+                )
                 new_waypoints.append(end)
-            else:
-                if source_y - target_y > 0:  # koniec jest wyzej
-                    new_waypoints.append(
-                        (
-                            source_x + random_bias,
-                            source_y + 80 - abs(source_y - target_y) + random_shift,
-                        )
+            else:  # poczatek jest wyzej
+                new_waypoints.append(
+                    (
+                        source_x + random_bias,
+                        source_y - 80 + abs(source_y - target_y) + random_shift,
                     )
-                    new_waypoints.append(
-                        (
-                            target_x - random_bias,
-                            source_y + 80 - abs(source_y - target_y) + random_shift,
-                        )
+                )
+                new_waypoints.append(
+                    (
+                        target_x - random_bias,
+                        source_y - 80 + abs(source_y - target_y) + random_shift,
                     )
-                    new_waypoints.append(end)
-                else:  # poczatek jest wyzej
-                    new_waypoints.append(
-                        (
-                            source_x + random_bias,
-                            source_y - 80 + abs(source_y - target_y) + random_shift,
-                        )
-                    )
-                    new_waypoints.append(
-                        (
-                            target_x - random_bias,
-                            source_y - 80 + abs(source_y - target_y) + random_shift,
-                        )
-                    )
-                    new_waypoints.append(end)
+                )
+                new_waypoints.append(end)
 
         for x, y in new_waypoints:
             ET.SubElement(
@@ -668,63 +601,52 @@ def run_bpmn_generation_logic(
     fix_ending_node(root, task_to_vertical_position)
     fix_gateways(root, task_to_vertical_position)
     fix_overlaps(root)
-    fix_waypoints2(root)
+    fix_waypoints(root)
 
     tree.write(output_bpmn_path, encoding="utf-8", xml_declaration=True)
     return dataframe
 
 
+@app.post("/generate_bpmn/")
+async def generate_bpmn_api(
+    csv_file: UploadFile = File(...),
+    role_field_name: str = Form("Resource"),
+    activity_field_name: str = Form("Activity"),
+    case_id_field_name: str = Form("Case ID"),
+    timestamp_field_name: str = Form("Start Timestamp"),
+):
+    cleanup_all_static_bpmn_files()
+
+    temp_csv_path = f"temp_{csv_file.filename}"
+
+    unique_filename = f"{uuid.uuid4()}.bpmn"
+    output_bpmn_path = os.path.join(STATIC_FILES_DIR, unique_filename)
+
+    with open(temp_csv_path, "wb") as buffer:
+        shutil.copyfileobj(csv_file.file, buffer)
+
+    temp_input_bpmn_path = f"temp_input_{uuid.uuid4()}.bpmn"
+
+    try:
+        run_bpmn_generation_logic(
+            log_path=temp_csv_path,
+            case_id_field_name=case_id_field_name,
+            activity_field_name=activity_field_name,
+            timestamp_field_name=timestamp_field_name,
+            role_field_name=role_field_name,
+            input_bpmn_path=temp_input_bpmn_path,
+            output_bpmn_path=output_bpmn_path,
+        )
+
+        file_url = f"http://localhost:8000/{STATIC_FILES_DIR}/{unique_filename}"
+        return JSONResponse(content={"diagram_url": file_url})
+
+    finally:
+        if os.path.exists(temp_csv_path):
+            os.remove(temp_csv_path)
+        if os.path.exists(temp_input_bpmn_path):
+            os.remove(temp_input_bpmn_path)
+
+
 if __name__ == "__main__":
-    run_bpmn_generation_logic(
-        log_path="../example_logs/new_teleclaims_changed_labels.csv",
-        case_id_field_name="id",
-        activity_field_name="action",
-        timestamp_field_name="from",
-        role_field_name="resource",
-        input_bpmn_path="input.bpmn",
-        output_bpmn_path="output.bpmn",
-    )
-
-# @app.post("/generate_bpmn/")
-# async def generate_bpmn_api(
-#     csv_file: UploadFile = File(...),
-#     role_field_name: str = Form("Resource"),
-#     activity_field_name: str = Form("Activity"),
-#     case_id_field_name: str = Form("Case ID"),
-#     timestamp_field_name: str = Form("Start Timestamp"),
-# ):
-#     cleanup_all_static_bpmn_files()
-
-#     temp_csv_path = f"temp_{csv_file.filename}"
-
-#     unique_filename = f"{uuid.uuid4()}.bpmn"
-#     output_bpmn_path = os.path.join(STATIC_FILES_DIR, unique_filename)
-
-#     with open(temp_csv_path, "wb") as buffer:
-#         shutil.copyfileobj(csv_file.file, buffer)
-
-#     temp_input_bpmn_path = f"temp_input_{uuid.uuid4()}.bpmn"
-
-#     try:
-#         run_bpmn_generation_logic(
-#             log_path=temp_csv_path,
-#             case_id_field_name=case_id_field_name,
-#             activity_field_name=activity_field_name,
-#             timestamp_field_name=timestamp_field_name,
-#             role_field_name=role_field_name,
-#             input_bpmn_path=temp_input_bpmn_path,
-#             output_bpmn_path=output_bpmn_path,
-#         )
-
-#         file_url = f"http://localhost:8000/{STATIC_FILES_DIR}/{unique_filename}"
-#         return JSONResponse(content={"diagram_url": file_url})
-
-#     finally:
-#         if os.path.exists(temp_csv_path):
-#             os.remove(temp_csv_path)
-#         if os.path.exists(temp_input_bpmn_path):
-#             os.remove(temp_input_bpmn_path)
-
-
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
