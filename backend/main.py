@@ -148,36 +148,6 @@ def fix_starting_node(
         height=bounds.get("height"),
     )
 
-    # outgoing_waypoints = bpmn_element.findall(f"{{{NS['bpmn']}}}outgoing", NS)
-    # outgoing_waypoints_ids = [waypoint.text for waypoint in outgoing_waypoints]
-    # bpmn_edges = [
-    #     find_bpmn_edge_by_bpmn_element(root, waypoint_id)
-    #     for waypoint_id in outgoing_waypoints_ids
-    # ]
-
-    # for bpmn_edge in bpmn_edges:
-    #     positions = []
-    #     elements = []
-    #     for element in bpmn_edge.findall("ns6:waypoint", NS):
-    #         elements.append(element)
-    #         positions.append((float(element.get("x")), float(element.get("y"))))
-
-    #     for element in elements:
-    #         bpmn_edge.remove(element)
-
-    #     last_x, last_y = positions.pop(0)
-    #     positions = positions[-1:]
-    #     positions.insert(0, (last_x, right_y + float(bounds.get("height")) / 2))
-    #     for x, y in positions:
-    #         ET.SubElement(
-    #             bpmn_edge,
-    #             f"{{{NS['ns6']}}}waypoint",
-    #             {
-    #                 "x": str(x),
-    #                 "y": str(y),
-    #             },
-    #         )
-
 
 def find_closest_left_task(root, tuples_of_positions_for_task, gateway_bounds):
     found_x = float("inf")
@@ -272,36 +242,6 @@ def fix_ending_node(
         width=bounds.get("width"),
         height=bounds.get("height"),
     )
-
-    # incoming_waypoints = bpmn_element.findall(f"{{{NS['bpmn']}}}incoming", NS)
-    # incoming_waypoints_ids = [waypoint.text for waypoint in incoming_waypoints]
-    # bpmn_edges = [
-    #     find_bpmn_edge_by_bpmn_element(root, waypoint_id)
-    #     for waypoint_id in incoming_waypoints_ids
-    # ]
-
-    # for bpmn_edge in bpmn_edges:
-    #     positions = []
-    #     elements = []
-    #     for element in bpmn_edge.findall("ns6:waypoint", NS):
-    #         elements.append(element)
-    #         positions.append((float(element.get("x")), float(element.get("y"))))
-
-    #     for element in elements:
-    #         bpmn_edge.remove(element)
-
-    #     last_x, last_y = positions.pop(-1)
-    #     positions = positions[:1]  # cutting all middlepoints to fix arrows
-    #     positions.append((last_x, right_y + float(bounds.get("width")) / 2))
-    #     for x, y in positions:
-    #         ET.SubElement(
-    #             bpmn_edge,
-    #             f"{{{NS['ns6']}}}waypoint",
-    #             {
-    #                 "x": str(x),
-    #                 "y": str(y),
-    #             },
-    #         )
 
 
 def fix_overlaps(root):
