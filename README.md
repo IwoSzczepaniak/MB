@@ -1,8 +1,6 @@
 # Fronted displaying the BMPN diagram using bpmn.io
 It uses react and vite.
 
-It fetches the diagram from `frontend/public/diagram.bpmn`
-
 ## Running the project
 
 ### Manually:
